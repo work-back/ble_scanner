@@ -160,7 +160,7 @@ struct hci_request ble_hci_request(uint16_t ocf, int clen, void * status, void *
 	return rq;
 }
 
-int handle_ble_adv_rpt(evt_le_meta_event * meta_event)
+int handle_ble_adv_rpt_0(evt_le_meta_event * meta_event)
 {
     le_advertising_info *info = (void *) (meta_event->data + 1);
     uint8_t *data = info->data;
@@ -205,6 +205,63 @@ int handle_ble_adv_rpt(evt_le_meta_event * meta_event)
     return 0;
 }
 
+int handle_ble_adv_rpt_i(le_advertising_info *info)
+{
+    uint8_t *adv_name = NULL;
+    uint8_t adv_name_len = 0;
+    char data_buf[256] = {0};
+    adv_name = esp_ble_resolve_adv_data(info->data, ESP_BLE_AD_TYPE_NAME_CMPL, &adv_name_len);
+    if (adv_name_len + 1 > sizeof(data_buf)) {
+        return -1;
+    }
+
+    memcpy(data_buf, adv_name, adv_name_len);
+
+    if (adv_name_len <= 3) {
+        return -1;
+    }
+
+    #if 0
+    if (strncmp(data_buf, "MI 6", 4) != 0) {
+        return -1;
+    }
+    #endif
+
+    printf("[%s][%d] LYJ@NS -------->adv_name:%s, event_type:%08X\n", __func__, __LINE__, data_buf, info->evt_type);
+    // bt_dump_all_ext_type(info->data);
+
+    uint8_t *uuid = NULL;
+    uint8_t uuid_len = 0;
+    uuid = esp_ble_resolve_adv_data(info->data, ESP_BLE_AD_TYPE_128SRV_CMPL, &uuid_len);
+    if (uuid && uuid_len) {
+        memset(data_buf, 0, sizeof(data_buf));
+        if (uuid_len + 1 < sizeof(data_buf)) {
+            memcpy(data_buf, uuid, uuid_len);
+            NS_dump_data(data_buf, uuid_len);
+        }
+    }
+
+    return 0;
+}
+
+int handle_ble_adv_rpt(evt_le_meta_event * meta_event)
+{
+    uint8_t reports_count = meta_event->data[0];
+    void * offset = meta_event->data + 1;
+    le_advertising_info * info = NULL;
+
+    while ( reports_count-- ) {
+        info = (le_advertising_info *)offset;
+        char addr[18];
+        ba2str(&(info->bdaddr), addr);
+        //printf("%s - RSSI %d\n", addr, (char)info->data[info->length]);
+        offset = info->data + info->length + 2;
+        handle_ble_adv_rpt_i(info);
+    }
+
+    return 0;
+}
+
 int handle_ble_scan(const char *buf, int len)
 {
 	evt_le_meta_event * meta_event;
@@ -244,7 +301,7 @@ int main()
 
 	le_set_scan_parameters_cp scan_params_cp;
 	memset(&scan_params_cp, 0, sizeof(scan_params_cp));
-	scan_params_cp.type 			= 0x00;
+	scan_params_cp.type 			= 0x01;
 	scan_params_cp.interval 		= htobs(0x0010);
 	scan_params_cp.window 			= htobs(0x0010);
 	scan_params_cp.own_bdaddr_type 	= 0x00; // Public Device Address (default).
