@@ -159,6 +159,52 @@ struct hci_request ble_hci_request(uint16_t ocf, int clen, void * status, void *
 	return rq;
 }
 
+int handle_ble_adv_rpt(evt_le_meta_event * meta_event)
+{
+    le_advertising_info *info = (void *) (meta_event->data + 1);
+    uint8_t *data = info->data;
+    int data_length = info->length;
+
+    //printf("evt_type:%d\n", info->evt_type);
+    //bt_dump_all_ext_type(info->data);
+    uint8_t *adv_name = NULL;
+    uint8_t adv_name_len = 0;
+    char data_buf[256] = {0};
+    adv_name = esp_ble_resolve_adv_data(info->data, ESP_BLE_AD_TYPE_NAME_CMPL, &adv_name_len);
+    if (adv_name_len + 1 > sizeof(data_buf)) {
+        return -1;
+    }
+
+    memcpy(data_buf, adv_name, adv_name_len);
+
+    if (adv_name_len <= 3) {
+        return -1;
+    }
+
+    if (strncmp(data_buf, "MI 6", 4) != 0) {
+        return -1;
+    }
+
+    printf("[%s][%d] LYJ@NS -------->adv_name:%s, event_type:%08X\n", __func__, __LINE__, data_buf, info->evt_type);
+    bt_dump_all_ext_type(info->data);
+
+    return 0;
+}
+
+int handle_ble_scan(const char *buf, int len)
+{
+	evt_le_meta_event * meta_event;
+	le_advertising_info * info;
+
+    if ( len >= HCI_EVENT_HDR_SIZE ) {
+        meta_event = (evt_le_meta_event*)(buf+HCI_EVENT_HDR_SIZE+1);
+        if ( meta_event->subevent == EVT_LE_ADVERTISING_REPORT ) {
+            handle_ble_adv_rpt(meta_event);
+        }
+    }
+    return 0;
+}
+
 int main()
 {
 	int ret, status;
@@ -245,70 +291,14 @@ int main()
 
 
 	uint8_t buf[HCI_MAX_EVENT_SIZE];
-	evt_le_meta_event * meta_event;
-	le_advertising_info * info;
 	int len;
 
-	int count = 0;
-	unsigned now = (unsigned)time(NULL);
-	unsigned last_detection_time = now;
-	// Keep scanning until we see nothing for 10 secs or we have seen lots of advertisements.  Then exit.
-	// We exit in this case because the scan may have failed or stopped. Higher level code can restart
-	//while ( last_detection_time - now < 10 && count < 1000 ) {
 	while (1) {
 		len = read(device, buf, sizeof(buf));
 		if ( len >= HCI_EVENT_HDR_SIZE ) {
-			count++;
-			last_detection_time = (unsigned)time(NULL);
-			meta_event = (evt_le_meta_event*)(buf+HCI_EVENT_HDR_SIZE+1);
-			if ( meta_event->subevent == EVT_LE_ADVERTISING_REPORT ) {
-				#if 0
-				uint8_t reports_count = meta_event->data[0];
-				void * offset = meta_event->data + 1;
-				while ( reports_count-- ) {
-					info = (le_advertising_info *)offset;
-					char addr[18];
-					ba2str(&(info->bdaddr), addr);
-					printf("%s %d", addr, (int8_t)info->data[info->length]);
-					for (int i = 0; i < info->length; i++) {
-						printf(" %02X", (unsigned char)info->data[i]);
-					}
-					printf("\n");
-					offset = info->data + info->length + 2;
-				}
-				#endif
-				le_advertising_info *info = (void *) (meta_event->data + 1);
-				uint8_t *data = info->data;
-				int data_length = info->length;
-
-				//printf("evt_type:%d\n", info->evt_type);
-				//bt_dump_all_ext_type(info->data);
-				uint8_t *adv_name = NULL;
-				uint8_t adv_name_len = 0;
-				char data_buf[256] = {0};
-				adv_name = esp_ble_resolve_adv_data(info->data, ESP_BLE_AD_TYPE_NAME_CMPL, &adv_name_len);
-				if (adv_name_len + 1 > sizeof(data_buf)) {
-					continue;
-				}
-
-				memcpy(data_buf, adv_name, adv_name_len);
-
-				if (adv_name_len <= 3) {
-					continue;
-				}
-
-				if (strncmp(data_buf, "MI 6", 4) != 0) {
-					continue;
-				}
-				
-				printf("[%s][%d] LYJ@NS -------->adv_name:%s, event_type:%08X\n", __func__, __LINE__, data_buf, info->evt_type);
-				bt_dump_all_ext_type(info->data);
-			}
+            handle_ble_scan(buf, len);
 		}
-		//now = (unsigned)time(NULL);
 	}
-
-	// Disable scanning.
 
 	memset(&scan_cp, 0, sizeof(scan_cp));
 	scan_cp.enable = 0x00;	// Disable flag.
