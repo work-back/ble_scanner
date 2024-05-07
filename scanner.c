@@ -18,6 +18,7 @@
 #include <bluetooth/hci.h>
 #include <bluetooth/hci_lib.h>
 #include <time.h>
+#include <arpa/inet.h>
 
 #include "bleapi.h"
 
@@ -181,12 +182,25 @@ int handle_ble_adv_rpt(evt_le_meta_event * meta_event)
         return -1;
     }
 
+    #if 0
     if (strncmp(data_buf, "MI 6", 4) != 0) {
         return -1;
     }
+    #endif
 
     printf("[%s][%d] LYJ@NS -------->adv_name:%s, event_type:%08X\n", __func__, __LINE__, data_buf, info->evt_type);
-    bt_dump_all_ext_type(info->data);
+    // bt_dump_all_ext_type(info->data);
+
+    uint8_t *uuid = NULL;
+    uint8_t uuid_len = 0;
+    uuid = esp_ble_resolve_adv_data(info->data, ESP_BLE_AD_TYPE_128SRV_CMPL, &uuid_len);
+    if (uuid && uuid_len) {
+        memset(data_buf, 0, sizeof(data_buf));
+        if (uuid_len + 1 < sizeof(data_buf)) {
+            memcpy(data_buf, uuid, uuid_len);
+            NS_dump_data(data_buf, uuid_len);
+        }
+    }
 
     return 0;
 }
@@ -197,7 +211,8 @@ int handle_ble_scan(const char *buf, int len)
 	le_advertising_info * info;
 
     if ( len >= HCI_EVENT_HDR_SIZE ) {
-        meta_event = (evt_le_meta_event*)(buf+HCI_EVENT_HDR_SIZE+1);
+        meta_event = (evt_le_meta_event*)(buf + HCI_EVENT_HDR_SIZE+1);
+        // printf("[%s][%d] LYJ@NS -------->event_type:%08X\n", __func__, __LINE__, meta_event->subevent);
         if ( meta_event->subevent == EVT_LE_ADVERTISING_REPORT ) {
             handle_ble_adv_rpt(meta_event);
         }
@@ -208,8 +223,6 @@ int handle_ble_scan(const char *buf, int len)
 int main()
 {
 	int ret, status;
-
-	// Get HCI device.
 
 	int device = hci_open_dev(1);
 	if ( device < 0 ) {
@@ -296,6 +309,9 @@ int main()
 	while (1) {
 		len = read(device, buf, sizeof(buf));
 		if ( len >= HCI_EVENT_HDR_SIZE ) {
+            hci_event_hdr *hdr = (hci_event_hdr *) buf;
+            // byte order
+            // printf("[%s][%d] LYJ@NS -------->hci hdr type:%02X==%02X, plen:%d\n", __func__, __LINE__, hdr->plen, EVT_LE_META_EVENT, hdr->evt);
             handle_ble_scan(buf, len);
 		}
 	}
