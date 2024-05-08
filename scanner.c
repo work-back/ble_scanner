@@ -316,6 +316,8 @@ int main()
 		return 0;
 	}
 
+    printf("OCF_LE_SET_SCAN_PARAMETERS status:%d\n", status);
+
 	// Set BLE events report mask.
 
 	le_set_event_mask_cp event_mask_cp;
@@ -330,6 +332,8 @@ int main()
 		perror("Failed to set event mask.");
 		return 0;
 	}
+
+    printf("OCF_LE_SET_EVENT_MASK status:%d\n", status);
 
 	// Enable scanning.
 
