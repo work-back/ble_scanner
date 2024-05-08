@@ -1,3 +1,6 @@
+// LYJ: if show nothing try:
+//         sudo hciconfig hci0 down && sudo hciconfig hci0 up
+
 // To compile this program, you need to install:
 //   sudo apt-get install libbluetooth-dev
 // Then you can compile it with:
@@ -301,10 +304,11 @@ int main()
 
 	le_set_scan_parameters_cp scan_params_cp;
 	memset(&scan_params_cp, 0, sizeof(scan_params_cp));
-	scan_params_cp.type 			= 0x01;
+	scan_params_cp.type 			= 0x00;
 	scan_params_cp.interval 		= htobs(0x0010);
 	scan_params_cp.window 			= htobs(0x0010);
 	scan_params_cp.own_bdaddr_type 	= 0x00; // Public Device Address (default).
+	//scan_params_cp.own_bdaddr_type 	= LE_RANDOM_ADDRESS; // RANDOM 
 	scan_params_cp.filter 			= 0x00; // Accept all.
 
 	struct hci_request scan_params_rq = ble_hci_request(OCF_LE_SET_SCAN_PARAMETERS, LE_SET_SCAN_PARAMETERS_CP_SIZE, &status, &scan_params_cp);
@@ -318,6 +322,8 @@ int main()
 
     printf("OCF_LE_SET_SCAN_PARAMETERS status:%d\n", status);
 
+
+    #if 0
 	// Set BLE events report mask.
 
 	le_set_event_mask_cp event_mask_cp;
@@ -334,6 +340,7 @@ int main()
 	}
 
     printf("OCF_LE_SET_EVENT_MASK status:%d\n", status);
+    #endif
 
 	// Enable scanning.
 
